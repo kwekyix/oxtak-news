@@ -1,0 +1,4 @@
+oxtak_mentions.json
+__pycache__/
+*.pyc
+.env
