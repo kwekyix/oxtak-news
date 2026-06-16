@@ -115,9 +115,9 @@ const MENTIONS = [
     url:         "https://prtimes.jp/main/html/rd/p/000000132.000144504.html",
     source:      "PR TIMES",
     source_type: "news",
-    title:       "メディアジーン",
+    title:       "ギズマート第10弾、プライバシーに配慮したスタンドアローン型AIレコーダー／翻訳ガジェット「Oxtak」、7月より世界に先駆けてギズマートで先行販売開始",
     date:        "2026-06-15",
-    snippet:     "Gizmart's 10th featured product: Oxtak, a privacy-conscious standalone AI recorder",
+    snippet:     "TNLメディアジーン（NASDAQ： TNMG）のグループ会社、株式会社メディアジーンが運営するギズモード・ジャパンのメディア連動型クラウドファンディングプラットフォーム「GIZMART」（以下、ギズマート）は、Oxtak Limited（本社：中国・香港）が開発したAI時代のボイスレコーダー「Oxtak」（オックスタック 以下、Oxtak）を2026年7月6日（月）より日本で初めてクラウドファンディングを開始いたします。",
     language:    "JP",
   }
 ];
