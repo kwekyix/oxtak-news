@@ -1,41 +1,85 @@
 #!/usr/bin/env python3
 """
-Oxtak / Moneypenny Web Mention Scraper
-Finds all relevant mentions across blogs, news sites, Reddit, LinkedIn, YouTube, etc.
+Oxtak Web Mention Scraper
+Finds relevant mentions across news sites, blogs, and tech media.
 Outputs structured JSON for use in the oxtak.com/blog page.
+
+URL resolution for Google News RSS:
+  Option A (recommended): Set GOOGLE_API_KEY + GOOGLE_SEARCH_CX env vars.
+    → Free 100 queries/day via Google Custom Search API; returns real article URLs.
+    Setup:
+      1. https://console.cloud.google.com → Enable "Custom Search JSON API"
+      2. https://programmablesearchengine.google.com → New search engine → get "cx" ID
+      3. https://console.cloud.google.com → APIs & Services → Credentials → Create API Key
+      4. Add to .env:  GOOGLE_API_KEY=...   GOOGLE_SEARCH_CX=...
+
+  Option B (no setup): Runs without API keys using Google News RSS.
+    → Tries to resolve redirect URLs automatically; skips any that can't be resolved.
 """
 
+import base64
 import json
-import time
+import os
 import re
 import sys
-from datetime import datetime
-from urllib.parse import quote_plus, urljoin, urlparse
+import time
+
+# Ensure Unicode output works on Windows terminals
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from urllib.parse import quote_plus, urlparse
+
 import requests
 from bs4 import BeautifulSoup
+
+# --- Load .env if present (no python-dotenv dependency needed) ---
+
+def _load_dotenv():
+    try:
+        with open(os.path.join(os.path.dirname(__file__), ".env")) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
+    except FileNotFoundError:
+        pass
+
+_load_dotenv()
 
 # --- Configuration ---
 
 SEARCH_TERMS = [
     "Oxtak",
-    "Moneypenny",
-    "Oxtak Moneypenny",
-    "Oxtak AI recorder",
-    "oxtak.com",
     "Moneypenny oxtak",
+    "Oxtak AI recorder",
+    "Oxtak Moneypenny",
+    "Oxtak recorder review",
 ]
+
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+GOOGLE_SEARCH_CX = os.environ.get("GOOGLE_SEARCH_CX", "")
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,ja;q=0.8,fr;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive",
 }
 
-REQUEST_DELAY = 1.5 
+REQUEST_DELAY = 1.5
+MAX_HTTP_RESOLVES = 8  # Limit slow HTTP-based URL resolution per run
 
 BLOCKED_URLS = {
     "https://techcrunch.com/2026/03/20/ai-notetaker-hardware-devices-pins-pendants-record-transcribe/",
@@ -166,56 +210,267 @@ SOURCE_TYPE_LABELS = {
     "video_youtube":    "YouTube",
 }
 
-# --- Helpers ---
 
-def get_page(url: str, timeout: int = 10) -> BeautifulSoup | None:
-    """Fetch a URL and return a BeautifulSoup object, or None on error."""
+# --- URL resolution ---
+
+_http_resolve_count = 0
+
+
+def _decode_gnews_base64(google_url: str) -> str | None:
+    """
+    Try to extract the publisher URL from a Google News CBMi... article ID.
+    Works for older Google News URLs where the URL is stored as readable text
+    in the base64 payload. Returns None for newer protobuf-encoded IDs.
+    """
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=timeout)
+        article_id = google_url.split("/articles/")[-1].split("?")[0]
+        padding = (4 - len(article_id) % 4) % 4
+        decoded = base64.urlsafe_b64decode(article_id + "=" * padding)
+        text = decoded.decode("latin-1", errors="replace")
+        for prefix in ("https://", "http://"):
+            idx = text.find(prefix)
+            if idx != -1:
+                end = idx
+                while end < len(text) and 0x20 <= ord(text[end]) <= 0x7E and text[end] not in ' "\'<>':
+                    end += 1
+                url = text[idx:end]
+                if "google.com" not in url and len(url) > 20:
+                    return url
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_gnews_http(google_url: str) -> str | None:
+    """
+    Resolve a Google News article URL via HTTP by hitting the /articles/ page.
+    Google redirects (HTTP or JS-based) to the real publisher URL.
+    Returns None if resolution fails.
+    """
+    # Strip /rss/ prefix and query params for the article page
+    article_url = google_url.replace("/rss/articles/", "/articles/").split("?")[0]
+    try:
+        resp = requests.get(
+            article_url,
+            headers=HEADERS,
+            timeout=7,
+            allow_redirects=True,
+        )
+        # HTTP redirect took us to the real article
+        final = resp.url
+        if "news.google.com" not in final and final.startswith("http"):
+            return final
+
+        html = resp.text
+
+        # Meta refresh: <meta http-equiv="refresh" content="0;url=https://...">
+        meta_match = re.search(
+            r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+content=["\'][^;]*;\s*url=([^"\'>\s]+)',
+            html, re.IGNORECASE,
+        )
+        if meta_match:
+            url = meta_match.group(1).strip()
+            if "google.com" not in url and url.startswith("http"):
+                return url
+
+        # Canonical link
+        canon_match = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html)
+        if canon_match:
+            url = canon_match.group(1).strip()
+            if "google.com" not in url and url.startswith("http"):
+                return url
+
+        # JavaScript redirect: window.location.replace("...") / assign("...") / href = "..."
+        js_match = re.search(
+            r'window\.location\.(?:replace|assign|href)\s*[=(]\s*["\']([^"\']+)["\']', html
+        )
+        if js_match:
+            url = js_match.group(1).strip()
+            if "google.com" not in url and url.startswith("http"):
+                return url
+
+    except Exception:
+        pass
+    return None
+
+
+def resolve_google_news_url(google_url: str) -> str | None:
+    """
+    Resolve a Google News RSS article link to the real publisher URL.
+    Returns None if the URL cannot be resolved (caller should skip the article).
+    """
+    global _http_resolve_count
+
+    if "news.google.com" not in google_url:
+        return google_url
+
+    # Fast path: try base64 decode (no HTTP request)
+    decoded = _decode_gnews_base64(google_url)
+    if decoded:
+        return decoded
+
+    # Slow path: HTTP request (limited per run to avoid long waits)
+    if _http_resolve_count < MAX_HTTP_RESOLVES:
+        _http_resolve_count += 1
+        resolved = _resolve_gnews_http(google_url)
+        if resolved:
+            return resolved
+
+    return None  # Unresolvable — caller should skip this article
+
+
+# --- Search backends ---
+
+def search_google_custom_search(query: str, max_results: int = 10) -> list[dict]:
+    """
+    Google Custom Search JSON API — requires GOOGLE_API_KEY + GOOGLE_SEARCH_CX.
+    Returns real publisher article URLs (no Google News redirects).
+    Free: 100 queries/day.
+    """
+    if not GOOGLE_API_KEY or not GOOGLE_SEARCH_CX:
+        return []
+    url = (
+        "https://www.googleapis.com/customsearch/v1"
+        f"?q={quote_plus(query)}&key={GOOGLE_API_KEY}&cx={GOOGLE_SEARCH_CX}&num={min(max_results, 10)}"
+    )
+    try:
+        resp = requests.get(url, timeout=10)
         resp.raise_for_status()
-        return BeautifulSoup(resp.text, "lxml")
+        data = resp.json()
     except Exception as exc:
-        print(f"  [WARN] Could not fetch {url}: {exc}", file=sys.stderr)
-        return None
-
-
-def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
-    """
-    Scrape DuckDuckGo HTML search results for a query.
-    Returns a list of {title, url, snippet} dicts.
-    """
-    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
-    soup = get_page(url)
-    if soup is None:
+        print(f"  [WARN] Google Custom Search failed: {exc}", file=sys.stderr)
         return []
 
     results = []
-    for res in soup.select(".result"):
-        title_el = res.select_one(".result__title a")
-        snippet_el = res.select_one(".result__snippet")
-        if not title_el:
-            continue
-        href = title_el.get("href", "")
-        # DuckDuckGo wraps links; extract the real URL
-        if "uddg=" in href:
-            match = re.search(r"uddg=([^&]+)", href)
-            if match:
-                from urllib.parse import unquote
-                href = unquote(match.group(1))
+    for item in data.get("items", []):
         results.append({
-            "title":   title_el.get_text(strip=True),
-            "url":     href,
-            "snippet": snippet_el.get_text(strip=True) if snippet_el else "",
+            "title":       item.get("title", ""),
+            "url":         item.get("link", ""),
+            "snippet":     item.get("snippet", ""),
+            "date":        "",
+            "source_name": item.get("displayLink", ""),
         })
-        if len(results) >= max_results:
-            break
 
     time.sleep(REQUEST_DELAY)
     return results
 
 
+def search_bing_news(query: str, max_results: int = 15) -> list[dict]:
+    """
+    Bing News RSS — no API key required, returns real publisher article URLs directly.
+    """
+    url = f"https://www.bing.com/news/search?q={quote_plus(query)}&format=rss"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+    except Exception as exc:
+        print(f"  [WARN] Bing News RSS failed: {exc}", file=sys.stderr)
+        return []
+
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as exc:
+        print(f"  [WARN] Bing RSS parse error: {exc}", file=sys.stderr)
+        return []
+
+    results = []
+    for item in root.findall(".//item")[:max_results]:
+        title    = item.findtext("title", "").strip()
+        link     = item.findtext("link", "").strip()
+        desc     = item.findtext("description", "")
+        pub_date = item.findtext("pubDate", "").strip()
+
+        snippet = BeautifulSoup(desc, "html.parser").get_text(strip=True) if desc else ""
+
+        date_str = ""
+        if pub_date:
+            try:
+                date_str = parsedate_to_datetime(pub_date).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        source_name = urlparse(link).netloc.replace("www.", "") if link else ""
+
+        if title and link and "bing.com" not in link:
+            results.append({
+                "title":       title,
+                "url":         link,
+                "snippet":     snippet,
+                "date":        date_str,
+                "source_name": source_name,
+            })
+
+    time.sleep(REQUEST_DELAY)
+    return results
+
+
+def search_google_news(query: str, max_results: int = 15) -> list[dict]:
+    """
+    Google News RSS — no API key required.
+    Tries to resolve redirect URLs. Articles with unresolvable URLs are included
+    with url_unresolved=True so the review step can prompt for a manual URL fix.
+    """
+    url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+    except Exception as exc:
+        print(f"  [WARN] Google News RSS failed: {exc}", file=sys.stderr)
+        return []
+
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as exc:
+        print(f"  [WARN] RSS parse error: {exc}", file=sys.stderr)
+        return []
+
+    results = []
+    unresolved_count = 0
+    for item in root.findall(".//item")[:max_results]:
+        title     = item.findtext("title", "").strip()
+        link      = item.findtext("link", "").strip()
+        desc_html = item.findtext("description", "")
+        pub_date  = item.findtext("pubDate", "").strip()
+        source_el = item.find("source")
+        source_name = source_el.text.strip() if source_el is not None else ""
+
+        snippet = BeautifulSoup(desc_html, "html.parser").get_text(strip=True)
+
+        actual_url = resolve_google_news_url(link)
+        unresolved = actual_url is None or "news.google.com" in actual_url
+        if unresolved:
+            actual_url = link  # Keep Google News URL as placeholder
+            unresolved_count += 1
+
+        date_str = ""
+        if pub_date:
+            try:
+                date_str = parsedate_to_datetime(pub_date).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        if title and actual_url:
+            entry = {
+                "title":       title,
+                "url":         actual_url,
+                "snippet":     snippet,
+                "date":        date_str,
+                "source_name": source_name,
+            }
+            if unresolved:
+                entry["url_unresolved"] = True
+            results.append(entry)
+
+    if unresolved_count:
+        print(f"   ({unresolved_count} articles need manual URL — will show in review)")
+
+    time.sleep(REQUEST_DELAY)
+    return results
+
+
+# --- Helpers ---
+
 def classify_source(url: str) -> str:
-    """Classify a URL into a source type."""
     domain = urlparse(url).netloc.lower()
     if "youtube.com" in domain or "youtu.be" in domain:
         return "video_youtube"
@@ -243,7 +498,6 @@ def classify_source(url: str) -> str:
 
 
 def deduplicate(mentions: list[dict]) -> list[dict]:
-    """Remove duplicates by URL, keeping first occurrence."""
     seen = set()
     out = []
     for m in mentions:
@@ -255,51 +509,65 @@ def deduplicate(mentions: list[dict]) -> list[dict]:
 
 
 def filter_oxtak_relevant(results: list[dict]) -> list[dict]:
-    """Keep only results that are truly about Oxtak / Moneypenny (the device)."""
     keywords = ["oxtak", "moneypenny"]
-    filtered = []
-    for r in results:
-        text = (r.get("title", "") + " " + r.get("snippet", "")).lower()
-        if any(kw in text for kw in keywords):
-            filtered.append(r)
-    return filtered
+    return [
+        r for r in results
+        if any(kw in (r.get("title", "") + " " + r.get("snippet", "")).lower() for kw in keywords)
+    ]
 
 
 # --- Main scraper ---
 
 def run_scraper(verbose: bool = True) -> list[dict]:
+    global _http_resolve_count
+    _http_resolve_count = 0
+
     print("═" * 60)
     print("  Oxtak / Moneypenny Web Mention Scraper")
     print("═" * 60)
 
-    all_mentions: list[dict] = list(KNOWN_MENTIONS)  # seed with curated list
+    using_api = bool(GOOGLE_API_KEY and GOOGLE_SEARCH_CX)
+    if using_api:
+        print("  Mode: Google Custom Search API (real article URLs)")
+    else:
+        print("  Mode: Google News RSS (no API key configured)")
+        print("  Tip:  Set GOOGLE_API_KEY + GOOGLE_SEARCH_CX in .env for better results")
+    print()
 
-    # Live search across all query terms
+    all_mentions: list[dict] = list(KNOWN_MENTIONS)
+
     for term in SEARCH_TERMS:
         if verbose:
-            print(f"\n Searching: {term!r}")
-        results = search_duckduckgo(term, max_results=15)
+            print(f" Searching: {term!r}")
+
+        if using_api:
+            results = search_google_custom_search(term, max_results=10)
+        else:
+            # Try Bing first (real URLs), fall back to Google News RSS
+            results = search_bing_news(term, max_results=15)
+            if not results:
+                results = search_google_news(term, max_results=15)
+
         filtered = filter_oxtak_relevant(results)
         if verbose:
             print(f"   Found {len(results)} results → {len(filtered)} relevant")
 
         for r in filtered:
             mention = {
-                "url":          r["url"],
-                "source":       urlparse(r["url"]).netloc.replace("www.", ""),
-                "source_type":  classify_source(r["url"]),
-                "title":        r["title"],
-                "date":         "",
-                "snippet":      r["snippet"],
-                "sentiment":    "neutral",
-                "language":     "en",
+                "url":         r["url"],
+                "source":      r.get("source_name") or urlparse(r["url"]).netloc.replace("www.", ""),
+                "source_type": classify_source(r["url"]),
+                "title":       r["title"],
+                "date":        r.get("date", ""),
+                "snippet":     r["snippet"],
+                "sentiment":   "neutral",
+                "language":    "en",
             }
             all_mentions.append(mention)
 
-    # Deduplicate
     all_mentions = deduplicate(all_mentions)
     all_mentions = [m for m in all_mentions if m["url"] not in BLOCKED_URLS]
-    all_mentions = [m for m in all_mentions if "oxtak" not in urlparse(m["url"]).netloc.lower()]  # exclude own site
+    all_mentions = [m for m in all_mentions if "oxtak" not in urlparse(m["url"]).netloc.lower()]
 
     if verbose:
         print(f"\n  Total unique mentions found: {len(all_mentions)}")
@@ -311,7 +579,7 @@ def run_scraper(verbose: bool = True) -> list[dict]:
 def save_results(mentions: list[dict], path: str = "oxtak_mentions.json"):
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
-            "scraped_at": datetime.utcnow().isoformat() + "Z",
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
             "total":      len(mentions),
             "mentions":   mentions,
         }, f, ensure_ascii=False, indent=2)

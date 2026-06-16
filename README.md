@@ -1,13 +1,13 @@
 # Oxtak Press & Coverage Blog
 
-Static press/coverage page hosted at **oxtak.com/blog**. Shows curated media mentions of Oxtak in a filterable, searchable timeline. No framework — plain HTML, CSS, and JS.
+Static press/coverage page hosted at **oxtak.com/blog**. Shows curated media mentions of Oxtak in a filterable, searchable timeline. No framework, just HTML, CSS, and JS.
 
 ---
 
 ## Folder structure
 
 ```
-oxtblog3/
+oxtblog/
 ├── oxtak_scraper.py       # scrapes the web for mentions → oxtak_mentions.json
 ├── build_blog.py          # review + build pipeline → public/oxtak_data.js
 ├── oxtak_mentions.json    # raw scraper output (auto-generated, do not edit)
@@ -77,14 +77,25 @@ python build_blog.py
 
 ## Scraper status
 
-DuckDuckGo HTML scraping returns 403. The current 11 approved mentions come from `KNOWN_MENTIONS` hardcoded in `oxtak_scraper.py`. The blog works fine without running the scraper — add mentions manually to `oxtak_approved.json` instead.
+
+Google links from the wbe scraper might return 400 for now. (Currently manually enetring the links to `oxtak_approved.json`)
+
+The fundamental reason this happens: Google News URLs require JavaScript to redirect to the actual article. Python's requests can't run JavaScript. The only reliable solutions are:
+
+Option	Effort	Cost
+Google Custom Search API	~5 min setup	Free (100/day)
+Manual URL entry during --review	30 sec per article	Free
+
+Run scraper -> finds articles (some with Google News URLs)
+Run --review -> approves with real URLs
+Blog only ever gets valid URLs
 
 ---
 
 ## Design notes
 
-- `index.html` is never touched by the pipeline — only `oxtak_data.js` is generated
+- `index.html` is never touched by the pipeline, only `oxtak_data.js` is generated
 - Dark default theme; light mode toggled via `html.light` class + CSS variables
 - Theme preference persisted in `localStorage`
 - Cards grouped by month, filterable by source type, searchable by title / snippet / source
-- Fonts: Space Grotesk (headings), Inter (body) — loaded as variable fonts from Google Fonts
+- Fonts: Space Grotesk (headings), Inter (body), loaded as variable fonts from Google Fonts

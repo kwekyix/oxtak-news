@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-build_blog.py — Oxtak Blog Builder
+build_blog.py Oxtak Blog Builder
 =====================================
 HOW IT WORKS
   Reads oxtak_approved.json and writes public/oxtak_data.js.
@@ -76,11 +76,17 @@ def review_mode():
     newly_approved = 0
 
     for i, m in enumerate(pending, 1):
+        url_broken = m.get("url_unresolved", False)
+
         print(f"\n  [{i}/{len(pending)}] {'─' * 44}")
         print(f"  SOURCE  : {m.get('source', '?')} ({m.get('source_type', '?')})")
         print(f"  TITLE   : {m.get('title', '?')[:80]}")
         print(f"  DATE    : {m.get('date', '?')}")
-        print(f"  URL     : {m.get('url', '?')[:80]}")
+        if url_broken:
+            print(f"  URL     : *** NEEDS FIX — Google News redirect (not a real link) ***")
+            print(f"            {m.get('url', '')[:80]}")
+        else:
+            print(f"  URL     : {m.get('url', '?')[:80]}")
         print(f"  SNIPPET : {m.get('snippet', '?')[:120]}")
         print()
 
@@ -91,13 +97,23 @@ def review_mode():
             print("  Enter Y, N, or S.")
 
         if choice == "y":
+            if url_broken:
+                print("  The URL above is a Google News redirect and won't work in the blog.")
+                real_url = input("  Paste the real article URL (or press Enter to skip): ").strip()
+                if real_url.startswith("http"):
+                    m = dict(m)
+                    m["url"] = real_url
+                    m.pop("url_unresolved", None)
+                else:
+                    print("  No valid URL — skipping this article.")
+                    continue
             approved.append(m)
             newly_approved += 1
-            print("Approved")
+            print("  Approved.")
         elif choice == "n":
-            print("Rejected")
+            print("  Rejected.")
         else:
-            print("Skipped: will appear again next time")
+            print("  Skipped: will appear again next time.")
 
     save_json(APPROVED_FILE, approved)
 
@@ -120,6 +136,12 @@ def build_mode():
         sys.exit(1)
 
     os.makedirs("public", exist_ok=True)
+
+    # Drop any entry that still has an unresolved Google News URL
+    broken = [m for m in approved if m.get("url_unresolved")]
+    if broken:
+        print(f"\n  [WARN] Skipping {len(broken)} entry/entries with unresolved URLs.")
+        approved = [m for m in approved if not m.get("url_unresolved")]
 
     # Serialise each mention as a JS object
     def js_str(s):
