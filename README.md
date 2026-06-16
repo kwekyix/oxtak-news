@@ -78,9 +78,9 @@ python build_blog.py
 ## Scraper status
 
 
-Google links from the wbe scraper might return 400 for now. (Currently manually enetring the links to `oxtak_approved.json`)
+Google links from the web scraper might return 400 for now. (Currently manually entering the links to `oxtak_approved.json`)
 
-The fundamental reason this happens: Google News URLs require JavaScript to redirect to the actual article. Python's requests can't run JavaScript. The only reliable solutions are:
+The reason this happens: Google News URLs require JavaScript to redirect to the actual article. Python's requests can't run JavaScript. The only reliable solutions are:
 
 Option	Effort	Cost
 Google Custom Search API	~5 min setup	Free (100/day)
