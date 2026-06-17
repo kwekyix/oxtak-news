@@ -33,7 +33,7 @@ const MENTIONS = [
   {
     url:         "https://prelaunch.com/projects/moneypenny-by-oxtak-moneypenny-your-idea-s-best-friend",
     source:      "Prelaunch.com",
-    source_type: "crowdfunding",
+    source_type: "tech_media",
     title:       "Moneypenny by Oxtak: Next-Gen Retro Futuristic AI Assistant",
     date:        "2026-01",
     snippet:     "Oxtak stands out in the crowded AI transcription and meeting intelligence market through a unique combination of privacy-first architecture, open AI ecosystem, and purpose-built hardware. No data retention: your data is yours. That's why no customer audio or transcripts are stored after processing.",

@@ -119,7 +119,7 @@ KNOWN_MENTIONS = [
     {
         "url": "https://prelaunch.com/projects/moneypenny-by-oxtak-moneypenny-your-idea-s-best-friend",
         "source": "Prelaunch.com",
-        "source_type": "crowdfunding",
+        "source_type": "tech_media",
         "title": "Moneypenny by Oxtak: Next-Gen Retro Futuristic AI Assistant",
         "date": "2026-01",
         "snippet": "Oxtak stands out in the crowded AI transcription and meeting intelligence market through a unique combination of privacy-first architecture, open AI ecosystem, and purpose-built hardware. No data retention: your data is yours. That's why no customer audio or transcripts are stored after processing.",
@@ -202,7 +202,6 @@ SOURCE_TYPE_LABELS = {
     "tech_media":       "Tech Media",
     "news":             "News",
     "blog":             "Blog",
-    "crowdfunding":     "Crowdfunding",
     "social_x":         "X / Twitter",
     "social_linkedin":  "LinkedIn",
     "social_facebook":  "Facebook",
@@ -488,12 +487,11 @@ def classify_source(url: str) -> str:
         return "social_tiktok"
     if any(x in domain for x in ["techcrunch", "theverge", "engadget", "wired",
                                    "arstechnica", "notebookcheck", "yankodesign",
-                                   "tomsguide", "cnet", "gizmodo"]):
+                                   "tomsguide", "cnet", "gizmodo", "prelaunch.com", 
+                                   "kickstarter.com", "indiegogo.com"]):
         return "tech_media"
     if any(x in domain for x in ["medium.com", "substack.com", "wordpress.com"]):
         return "blog"
-    if any(x in domain for x in ["prelaunch.com", "kickstarter.com", "indiegogo.com"]):
-        return "crowdfunding"
     return "news"
 
 

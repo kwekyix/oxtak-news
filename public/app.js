@@ -2,7 +2,6 @@ const TYPE_LABELS = {
   tech_media:      "Tech media",
   news:            "News",
   blog:            "Blog",
-  crowdfunding:    "Crowdfunding",
   social_x:        "X / Twitter",
   social_linkedin: "LinkedIn",
   social_facebook: "Facebook",
