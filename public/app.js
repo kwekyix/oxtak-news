@@ -75,9 +75,10 @@ function renderTimeline(mentions) {
       card.href = m.url;
       card.target = '_blank';
       card.rel = 'noopener noreferrer';
-      const LANG_BCP47 = { JP: 'ja', ZH: 'zh', KO: 'ko' };
+      const LANG_BCP47 = { JP: 'ja', JA: 'ja', ZH: 'zh', KO: 'ko' };
       if (m.language && m.language !== 'EN') {
         card.lang = LANG_BCP47[m.language] || m.language.toLowerCase();
+        card.setAttribute('translate', 'no');
       }
       card.innerHTML = `
         <div class="card-header">
@@ -85,7 +86,7 @@ function renderTimeline(mentions) {
           ${m.language && m.language !== 'EN' ? `<span class="lang-tag">${m.language}</span>` : ''}
         </div>
         <div class="card-title">${m.title}</div>
-        <div class="card-snippet">${m.snippet}</div>
+        <div class="card-snippet">${m.language && m.language !== 'EN' ? '' : m.snippet}</div>
         <div class="card-footer">
           <span class="card-source">${m.source}</span>
           <span class="card-arrow">Read more →</span>
