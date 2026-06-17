@@ -75,6 +75,10 @@ function renderTimeline(mentions) {
       card.href = m.url;
       card.target = '_blank';
       card.rel = 'noopener noreferrer';
+      const LANG_BCP47 = { JP: 'ja', ZH: 'zh', KO: 'ko' };
+      if (m.language && m.language !== 'EN') {
+        card.lang = LANG_BCP47[m.language] || m.language.toLowerCase();
+      }
       card.innerHTML = `
         <div class="card-header">
           <span class="source-badge">${TYPE_LABELS[m.source_type] || m.source_type}</span>
