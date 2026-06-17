@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Oxtak Web Mention Scraper
 Finds relevant mentions across news sites, blogs, and tech media.
