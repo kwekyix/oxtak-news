@@ -85,7 +85,7 @@ function renderTimeline(mentions) {
           ${m.language && m.language !== 'EN' ? `<span class="lang-tag">${m.language}</span>` : ''}
         </div>
         <div class="card-title">${m.title}</div>
-        <div class="card-snippet">${m.language && m.language !== 'EN' ? '' : m.snippet}</div>
+        <div class="card-snippet">${m.snippet}</div>
         <div class="card-footer">
           <span class="card-source">${m.source}</span>
           <span class="card-arrow">Read more →</span>
