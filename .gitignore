@@ -2,3 +2,4 @@ oxtak_mentions.json
 __pycache__/
 *.pyc
 .env
+_test_scraper.py
