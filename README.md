@@ -1,6 +1,6 @@
 # Oxtak News Page
 
-The press page at **news.oxtak.com** — a curated list of media mentions of Oxtak, shown as a filterable, searchable timeline.
+The press page at **news.oxtak.com** is a curated list of media mentions of Oxtak, shown as a filterable, searchable timeline.
 
 ---
 
