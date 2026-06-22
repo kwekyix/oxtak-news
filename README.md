@@ -1,12 +1,12 @@
-# Oxtak Press & Coverage Blog
+# Oxtak News Page
 
-The press page at **oxtak.com/blog** — a curated list of media mentions of Oxtak, shown as a filterable, searchable timeline.
+The press page at **news.oxtak.com** — a curated list of media mentions of Oxtak, shown as a filterable, searchable timeline.
 
 ---
 
 ## One-time setup
 
-You only need to do this once.
+You only need to do this once
 
 **1. Install Python**
 Download and install Python 3.10 or newer from [python.org](https://www.python.org/downloads/). During installation, check the box that says **"Add Python to PATH"**.
