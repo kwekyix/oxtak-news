@@ -3,15 +3,15 @@
 build_blog.py Oxtak Blog Builder
 =====================================
 HOW IT WORKS
-  Reads oxtak_approved.json and writes public/oxtak_data.js.
-  The HTML page (public/index.html) loads that JS file automatically.
+  Reads oxtak_approved.json and writes docs/oxtak_data.js.
+  The HTML page (docs/index.html) loads that JS file automatically.
   The HTML is never modified — no placeholder, no template confusion.
 
 FULL WORKFLOW
   Step 1:  python oxtak_scraper.py          scrapes the web, writes oxtak_mentions.json
   Step 2:  python build_blog.py --review    shows new mentions for you to approve/reject
-  Step 3:  python build_blog.py             writes public/oxtak_data.js
-  Step 4:  upload the public/ folder to oxtak.com/blog
+  Step 3:  python build_blog.py             writes docs/oxtak_data.js
+  Step 4:  upload the docs/ folder to oxtak.com/blog
 
 TO REMOVE A POST PERMANENTLY
   1. Delete it from oxtak_approved.json
@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 
 MENTIONS_FILE = "oxtak_mentions.json"
 APPROVED_FILE = "oxtak_approved.json"
-OUTPUT_JS     = os.path.join("public", "oxtak_data.js")
+OUTPUT_JS     = os.path.join("docs", "oxtak_data.js")
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ def build_mode():
         print(f"Run:  python build_blog.py --review   first.\n")
         sys.exit(1)
 
-    os.makedirs("public", exist_ok=True)
+    os.makedirs("docs", exist_ok=True)
 
     # Drop any entry that still has an unresolved Google News URL
     broken = [m for m in approved if m.get("url_unresolved")]
@@ -182,7 +182,7 @@ def build_mode():
     print(f"  Output    : {OUTPUT_JS}")
     print(f"  Built at  : {built_at}")
     print(f"{'═' * 60}")
-    print(f"\n  Upload the public/ folder to oxtak.com/blog\n")
+    print(f"\n  Upload the docs/ folder to oxtak.com/blog\n")
 
 
 # ---------------------------------------------------------------------------
