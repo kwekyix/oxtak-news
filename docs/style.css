@@ -1,3 +1,4 @@
+/* --- Dark mode --- */
 :root {
   --bg:           #000000;
   --bg2:          #1d1d1d;
@@ -193,7 +194,7 @@ nav {
   font-size: 14px;
   font-weight: 500;
   padding: 6px 14px;
-  border-radius: 100px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.15s;
   font-family: var(--font);
@@ -221,7 +222,7 @@ nav {
   gap: 8px;
   background: var(--bg2);
   border: 0.5px solid var(--border);
-  border-radius: 8px;
+  border-radius: 5px;
   padding: 0 12px;
   height: 34px;
   transition: border-color 0.15s;
@@ -279,7 +280,7 @@ nav {
 
 .mention-card {
   background: var(--bg2);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 20px 22px;
   text-decoration: none;
   display: flex;
