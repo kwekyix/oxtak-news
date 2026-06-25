@@ -33,11 +33,9 @@ html.light {
   margin: 0;
   padding: 0;
 }
-
 html {
   scroll-behavior: smooth;
 }
-
 body {
   background: var(--bg);
   color: var(--white);
@@ -47,9 +45,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+
 /* --- Nav --- */
 nav {
-  font-family: var(--font-heading);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -63,8 +61,8 @@ nav {
   padding: 0 clamp(1.5rem, 5vw, 4rem);
   height: 64px;
 }
-
 .nav-logo {
+  font-family: var(--font-heading);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -74,27 +72,23 @@ nav {
   font-weight: 600;
   letter-spacing: -0.3px;
 }
-
 .logo-img {
   height: 32px;
   width: auto;
   flex-shrink: 0;
 }
-
 .nav-links {
   display: flex;
   gap: 1.5rem;
   align-items: center;
   opacity: 1;
 }
-
 .nav-links a {
   color: var(--muted);
   text-decoration: none;
   font-size: 14px;
   transition: color .15s;
 }
-
 .nav-links a:hover {
   color: var(--white-btn);
 }
@@ -112,7 +106,6 @@ nav {
   justify-content: center;
   flex-shrink: 0;
 }
-
 .theme-toggle:hover {
   color: var(--white);
   background: var(--border);
@@ -125,9 +118,9 @@ nav {
   padding: 10px 20px;
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  font-family: var(--font);
 }
-
 .nav-links .btn-launch:hover {
   opacity: 0.9;
 }
