@@ -51,6 +51,14 @@ SEARCH_TERMS = [
     "Oxtak recorder review",
 ]
 
+# Japanese-locale searches — run with gl=jp, hl=ja
+SEARCH_TERMS_JA = [
+    "Oxtak",
+    "Oxtak ボイスレコーダー",
+    "Oxtak Moneypenny",
+    "オクスタック",
+]
+
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 
 REQUEST_DELAY = 1.5
@@ -73,23 +81,30 @@ SOURCE_TYPE_LABELS = {
 
 # --- Search backend ---
 
-def search_serpapi(query: str, max_results: int = 10) -> list[dict]:
+def search_serpapi(query: str, max_results: int = 10, gl: str = "", hl: str = "") -> list[dict]:
     """
     SerpAPI Google News search — requires SERPAPI_KEY in .env.
     Returns real publisher article URLs directly (no redirects).
     Free plan: 100 searches/month at serpapi.com.
+    Pass gl='jp' and hl='ja' for Japanese-locale results.
     """
     if not SERPAPI_KEY:
         return []
 
+    params = {
+        "engine":  "google_news",
+        "q":       query,
+        "api_key": SERPAPI_KEY,
+    }
+    if gl:
+        params["gl"] = gl
+    if hl:
+        params["hl"] = hl
+
     try:
         resp = requests.get(
             "https://serpapi.com/search",
-            params={
-                "engine":  "google_news",
-                "q":       query,
-                "api_key": SERPAPI_KEY,
-            },
+            params=params,
             timeout=15,
         )
         resp.raise_for_status()
@@ -148,12 +163,31 @@ def classify_source(url: str) -> str:
         return "social_tiktok"
     if any(x in domain for x in ["techcrunch", "theverge", "engadget", "wired",
                                    "arstechnica", "notebookcheck", "yankodesign",
-                                   "tomsguide", "cnet", "gizmodo", "prelaunch.com", 
-                                   "kickstarter.com", "indiegogo.com"]):
+                                   "tomsguide", "cnet", "gizmodo", "prelaunch.com",
+                                   "kickstarter.com", "indiegogo.com",
+                                   "gizmodo.jp", "ascii.jp", "itmedia.co.jp",
+                                   "akibapc.com", "4gamer.net", "impress.co.jp",
+                                   "watch.impress.co.jp", "pc.watch.impress.co.jp",
+                                   "costory.jp", "makuake.com", "campfire.asia",
+                                   "greenfunding.jp"]):
         return "tech_media"
-    if any(x in domain for x in ["medium.com", "substack.com", "wordpress.com"]):
+    if any(x in domain for x in ["medium.com", "substack.com", "wordpress.com",
+                                   "note.com"]):
         return "blog"
     return "news"
+
+
+def detect_language(url: str, default: str = "en") -> str:
+    domain = urlparse(url).netloc.lower()
+    if domain.endswith(".jp") or ".co.jp" in domain:
+        return "ja"
+    if domain.endswith(".de") or domain.endswith(".at") or domain.endswith(".ch"):
+        return "de"
+    if domain.endswith(".fr"):
+        return "fr"
+    if domain.endswith(".vn"):
+        return "vi"
+    return default
 
 
 def deduplicate(mentions: list[dict]) -> list[dict]:
@@ -168,10 +202,12 @@ def deduplicate(mentions: list[dict]) -> list[dict]:
 
 
 def filter_oxtak_relevant(results: list[dict]) -> list[dict]:
-    keywords = ["oxtak", "moneypenny"]
+    keywords_lower = ["oxtak", "moneypenny"]
+    keywords_ja = ["オクスタック", "マネーペニー"]
     return [
         r for r in results
-        if any(kw in (r.get("title", "") + " " + r.get("snippet", "")).lower() for kw in keywords)
+        if any(kw in (r.get("title", "") + " " + r.get("snippet", "")).lower() for kw in keywords_lower)
+        or any(kw in (r.get("title", "") + " " + r.get("snippet", "")) for kw in keywords_ja)
     ]
 
 
@@ -210,7 +246,33 @@ def run_scraper(verbose: bool = True) -> list[dict]:
                 "title":       r["title"],
                 "date":        r.get("date", ""),
                 "snippet":     r["snippet"],
-                "language":    "en",
+                "language":    detect_language(r["url"]),
+            })
+
+    if verbose:
+        print()
+        print("  [JP] Searching Japanese locale (gl=jp, hl=ja) ...")
+
+    for term in SEARCH_TERMS_JA:
+        if not SERPAPI_KEY:
+            break
+        if verbose:
+            print(f" Searching (JP): {term!r}")
+
+        results  = search_serpapi(term, max_results=10, gl="jp", hl="ja")
+        filtered = filter_oxtak_relevant(results)
+        if verbose:
+            print(f"   Found {len(results)} results → {len(filtered)} relevant")
+
+        for r in filtered:
+            all_mentions.append({
+                "url":         r["url"],
+                "source":      r.get("source_name") or urlparse(r["url"]).netloc.replace("www.", ""),
+                "source_type": classify_source(r["url"]),
+                "title":       r["title"],
+                "date":        r.get("date", ""),
+                "snippet":     r["snippet"],
+                "language":    detect_language(r["url"], default="ja"),
             })
 
     all_mentions = deduplicate(all_mentions)

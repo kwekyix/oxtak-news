@@ -49,7 +49,10 @@ function groupByMonth(mentions) {
   });
   return Object.entries(groups)
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([, g]) => g);
+    .map(([, g]) => {
+      g.items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      return g;
+    });
 }
 
 function renderTimeline(mentions) {
