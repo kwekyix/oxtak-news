@@ -32,13 +32,12 @@ The free plan gives 100 searches/month, which is more than enough.
 
 ## How to update the blog
 
-Run these four commands in order from this folder:
+Run these commands in order from this folder:
 
 ```
 Step 1:  python oxtak_scraper.py           -> searches the web for new mentions
 Step 2:  python build_blog.py --review     -> you decide what to approve or reject
 Step 3:  python build_blog.py              -> builds the blog files
-Step 4:  upload the docs/ folder to oxtak.com/blog
 ```
 
 ### What the keys do in build_blog.py --review

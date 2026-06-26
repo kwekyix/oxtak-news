@@ -177,6 +177,31 @@ def classify_source(url: str) -> str:
     return "news"
 
 
+def normalize_date(raw: str) -> str:
+    """Convert SerpAPI date strings to YYYY-MM-DD (or YYYY-MM / YYYY for partial dates)."""
+    if not raw:
+        return ""
+    raw = raw.strip()
+    # Already ISO format
+    if len(raw) >= 7 and raw[4] == "-":
+        return raw[:10]
+    # "MM/DD/YYYY, ..." format from SerpAPI
+    import re as _re
+    m = _re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", raw)
+    if m:
+        month, day, year = m.group(1), m.group(2), m.group(3)
+        return f"{year}-{int(month):02d}-{int(day):02d}"
+    # Relative: "X hours/days/weeks ago"
+    m = _re.match(r"(\d+)\s+(hour|day|week|month)s?\s+ago", raw, _re.I)
+    if m:
+        n, unit = int(m.group(1)), m.group(2).lower()
+        from datetime import timedelta
+        delta = {"hour": timedelta(hours=n), "day": timedelta(days=n),
+                 "week": timedelta(weeks=n), "month": timedelta(days=n * 30)}
+        return (datetime.now(timezone.utc) - delta[unit]).strftime("%Y-%m-%d")
+    return raw
+
+
 def detect_language(url: str, default: str = "en") -> str:
     domain = urlparse(url).netloc.lower()
     if domain.endswith(".jp") or ".co.jp" in domain:
@@ -244,7 +269,7 @@ def run_scraper(verbose: bool = True) -> list[dict]:
                 "source":      r.get("source_name") or urlparse(r["url"]).netloc.replace("www.", ""),
                 "source_type": classify_source(r["url"]),
                 "title":       r["title"],
-                "date":        r.get("date", ""),
+                "date":        normalize_date(r.get("date", "")),
                 "snippet":     r["snippet"],
                 "language":    detect_language(r["url"]),
             })
@@ -270,7 +295,7 @@ def run_scraper(verbose: bool = True) -> list[dict]:
                 "source":      r.get("source_name") or urlparse(r["url"]).netloc.replace("www.", ""),
                 "source_type": classify_source(r["url"]),
                 "title":       r["title"],
-                "date":        r.get("date", ""),
+                "date":        normalize_date(r.get("date", "")),
                 "snippet":     r["snippet"],
                 "language":    detect_language(r["url"], default="ja"),
             })

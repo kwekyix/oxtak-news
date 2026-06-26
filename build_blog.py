@@ -11,7 +11,6 @@ FULL WORKFLOW
   Step 1:  python oxtak_scraper.py          scrapes the web, writes oxtak_mentions.json
   Step 2:  python build_blog.py --review    shows new mentions for you to approve/reject
   Step 3:  python build_blog.py             writes docs/oxtak_data.js
-  Step 4:  upload the docs/ folder to oxtak.com/blog
 
 TO REMOVE A POST PERMANENTLY
   1. Delete it from oxtak_approved.json
@@ -20,9 +19,10 @@ TO REMOVE A POST PERMANENTLY
 """
 
 import json
+import re
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 MENTIONS_FILE = "oxtak_mentions.json"
 APPROVED_FILE = "oxtak_approved.json"
@@ -48,6 +48,24 @@ def load_json(path):
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def normalize_date(raw: str) -> str:
+    if not raw:
+        return ""
+    raw = raw.strip()
+    if len(raw) >= 7 and raw[4] == "-":
+        return raw[:10]
+    m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", raw)
+    if m:
+        return f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+    m = re.match(r"(\d+)\s+(hour|day|week|month)s?\s+ago", raw, re.I)
+    if m:
+        n, unit = int(m.group(1)), m.group(2).lower()
+        delta = {"hour": timedelta(hours=n), "day": timedelta(days=n),
+                 "week": timedelta(weeks=n), "month": timedelta(days=n * 30)}
+        return (datetime.now(timezone.utc) - delta[unit]).strftime("%Y-%m-%d")
+    return raw
 
 
 def approved_urls(approved):
@@ -107,6 +125,8 @@ def review_mode():
                 else:
                     print("  No valid URL — skipping this article.")
                     continue
+            m = dict(m)
+            m["date"] = normalize_date(m.get("date", ""))
             approved.append(m)
             newly_approved += 1
             print("  Approved.")
