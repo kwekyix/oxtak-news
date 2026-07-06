@@ -11,8 +11,10 @@ Setup:
   4. Run:  python oxtak_scraper.py
 """
 
+import html
 import json
 import os
+import re
 import sys
 import time
 
@@ -63,8 +65,25 @@ SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 
 REQUEST_DELAY = 1.5
 
+# Google News stopped including a "snippet" field in SerpAPI's google_news
+# engine results (mid-2026). When that happens we fetch the article page
+# directly and pull its og:description / meta description instead.
+SNIPPET_FETCH_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+}
+
+META_DESCRIPTION_PATTERNS = [
+    re.compile(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)["\']', re.I),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:description["\']', re.I),
+    re.compile(r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)["\']', re.I),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']description["\']', re.I),
+]
+
 BLOCKED_URLS = {
     "https://techcrunch.com/2026/03/20/ai-notetaker-hardware-devices-pins-pendants-record-transcribe/",
+    "https://news.google.com/rss/articles/CBMiXkFVX3lxTFAtX1QweHFhSjE4dFd2OHpBbjBLeF84TlRPcXBFZzJmZTViMkNzcUl2UVRrNEVNSFZrVmFOc0c1b2dNLW81R19oNUhPT05jNW1kbUZYN245d0VjU2U4bUE?oc=5",
+    "https://www.vietnam.vn/ja/oxtak-trinh-lang-moneypenny-may-ghi-am-tich-hop-ai-giup-tom-tat-va-dich-thuat-cuoc-hop",
 }
 
 SOURCE_TYPE_LABELS = {
@@ -236,6 +255,31 @@ def filter_oxtak_relevant(results: list[dict]) -> list[dict]:
     ]
 
 
+def fetch_snippet_fallback(url: str, max_len: int = 300) -> str:
+    """Fetch the article page and pull a snippet from its meta description.
+
+    Used when SerpAPI's google_news engine does not return a snippet, which became
+    the norm for most sources starting mid-2026. 
+    Tried for every source type — most social platforms render a real og:description 
+    for link-preview purposes, and the ones that dont (or that block/rate-limit
+    plain requests) just fail soft and leave the snippet empty.
+    """
+    try:
+        resp = requests.get(url, headers=SNIPPET_FETCH_HEADERS, timeout=8)
+        resp.raise_for_status()
+        page_html = resp.text
+    except Exception:
+        return ""
+
+    for pattern in META_DESCRIPTION_PATTERNS:
+        m = pattern.search(page_html)
+        if m:
+            snippet = html.unescape(m.group(1)).strip()
+            snippet = re.sub(r"\s+", " ", snippet)
+            return snippet[:max_len]
+    return ""
+
+
 # --- Main scraper ---
 
 def run_scraper(verbose: bool = True) -> list[dict]:
@@ -264,13 +308,15 @@ def run_scraper(verbose: bool = True) -> list[dict]:
             print(f"   Found {len(results)} results → {len(filtered)} relevant")
 
         for r in filtered:
+            source_type = classify_source(r["url"])
+            snippet = r["snippet"] or fetch_snippet_fallback(r["url"])
             all_mentions.append({
                 "url":         r["url"],
                 "source":      r.get("source_name") or urlparse(r["url"]).netloc.replace("www.", ""),
-                "source_type": classify_source(r["url"]),
+                "source_type": source_type,
                 "title":       r["title"],
                 "date":        normalize_date(r.get("date", "")),
-                "snippet":     r["snippet"],
+                "snippet":     snippet,
                 "language":    detect_language(r["url"]),
             })
 
@@ -290,13 +336,15 @@ def run_scraper(verbose: bool = True) -> list[dict]:
             print(f"   Found {len(results)} results → {len(filtered)} relevant")
 
         for r in filtered:
+            source_type = classify_source(r["url"])
+            snippet = r["snippet"] or fetch_snippet_fallback(r["url"])
             all_mentions.append({
                 "url":         r["url"],
                 "source":      r.get("source_name") or urlparse(r["url"]).netloc.replace("www.", ""),
-                "source_type": classify_source(r["url"]),
+                "source_type": source_type,
                 "title":       r["title"],
                 "date":        normalize_date(r.get("date", "")),
-                "snippet":     r["snippet"],
+                "snippet":     snippet,
                 "language":    detect_language(r["url"], default="ja"),
             })
 
@@ -350,12 +398,31 @@ def save_results(mentions: list[dict], path: str = "oxtak_mentions.json"):
     existing_urls = {m["url"].rstrip("/").lower() for m in existing}
     skip = existing_urls | approved_urls
     new_only = [m for m in mentions if m["url"].rstrip("/").lower() not in skip]
+
+    # Existing entries win on every field except snippet: if a past run left
+    # one blank (e.g. before the meta-description fallback existed, or the
+    # fetch failed that time) and this run found real text for the same URL,
+    # backfill it instead of freezing the blank forever.
+    fresh_snippets = {
+        m["url"].rstrip("/").lower(): m["snippet"]
+        for m in mentions if m.get("snippet")
+    }
+    backfilled = 0
+    for m in existing:
+        if not m.get("snippet"):
+            fresh = fresh_snippets.get(m["url"].rstrip("/").lower())
+            if fresh:
+                m["snippet"] = fresh
+                backfilled += 1
+
     merged = existing + new_only
 
     if new_only:
         print(f"  {len(new_only)} new mention(s) added")
     else:
         print(f"  No new mentions found")
+    if backfilled:
+        print(f"  {backfilled} existing mention(s) had a missing snippet backfilled")
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
@@ -389,7 +456,32 @@ def print_summary(mentions: list[dict]):
             print(f"      Date: {m['date']}")
 
 
+def backfill_approved_snippets(path: str = "oxtak_approved.json"):
+    """Fill in snippets for already-approved entries missing one — e.g.
+    approved back when SerpAPI still returned a snippet, but the article
+    itself never got a fallback fetch. build_blog.py only ever reads this
+    file verbatim, so a blank snippet here would otherwise stay blank forever."""
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        approved = json.load(f)
+
+    changed = 0
+    for m in approved:
+        if not m.get("snippet"):
+            snippet = fetch_snippet_fallback(m["url"])
+            if snippet:
+                m["snippet"] = snippet
+                changed += 1
+
+    if changed:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(approved, f, ensure_ascii=False, indent=2)
+        print(f"  {changed} approved mention(s) had a missing snippet backfilled -> {path}")
+
+
 if __name__ == "__main__":
     mentions = run_scraper(verbose=True)
     save_results(mentions)
+    backfill_approved_snippets()
     print_summary(mentions)

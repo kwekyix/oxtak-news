@@ -12,7 +12,11 @@ FULL WORKFLOW
   Step 2:  python build_blog.py --review    shows new mentions for you to approve/reject
   Step 3:  python build_blog.py             writes docs/oxtak_data.js
 
-TO REMOVE A POST PERMANENTLY
+  Rejecting a mention during --review permanently blocks it: it's removed
+  from oxtak_mentions.json and its URL is added to BLOCKED_URLS in
+  oxtak_scraper.py, so it never comes back on a future scrape.
+
+TO REMOVE AN ALREADY-APPROVED POST PERMANENTLY
   1. Delete it from oxtak_approved.json
   2. Add its URL to BLOCKED_URLS in oxtak_scraper.py
   3. Run:  python build_blog.py
@@ -24,8 +28,15 @@ import sys
 import os
 from datetime import datetime, timezone, timedelta
 
+# Ensure Unicode output works on Windows terminals
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 MENTIONS_FILE = "oxtak_mentions.json"
 APPROVED_FILE = "oxtak_approved.json"
+SCRAPER_FILE  = "oxtak_scraper.py"
 OUTPUT_JS     = os.path.join("docs", "oxtak_data.js")
 
 
@@ -72,6 +83,52 @@ def approved_urls(approved):
     return {m["url"] for m in approved}
 
 
+def remove_from_mentions(urls_to_remove):
+    """Strip rejected URLs out of oxtak_mentions.json, preserving its
+    scraped_at/total wrapper if present, so they don't reappear in review."""
+    if not urls_to_remove or not os.path.exists(MENTIONS_FILE):
+        return
+
+    with open(MENTIONS_FILE, encoding="utf-8") as f:
+        data = json.load(f)
+
+    if isinstance(data, dict) and "mentions" in data:
+        data["mentions"] = [m for m in data["mentions"] if m["url"] not in urls_to_remove]
+        data["total"] = len(data["mentions"])
+    elif isinstance(data, list):
+        data = [m for m in data if m["url"] not in urls_to_remove]
+    else:
+        return
+
+    save_json(MENTIONS_FILE, data)
+
+
+def block_urls_permanently(urls):
+    """Insert rejected URLs into BLOCKED_URLS in oxtak_scraper.py so the
+    scraper never surfaces them again."""
+    if not urls or not os.path.exists(SCRAPER_FILE):
+        return
+
+    with open(SCRAPER_FILE, encoding="utf-8") as f:
+        content = f.read()
+
+    match = re.search(r"(BLOCKED_URLS\s*=\s*\{)(.*?)(\n\})", content, re.DOTALL)
+    if not match:
+        print(f"  [WARN] Could not find BLOCKED_URLS in {SCRAPER_FILE} — URLs not auto-blocked.")
+        return
+
+    existing_block = match.group(2)
+    new_urls = [u for u in urls if u not in existing_block]
+    if not new_urls:
+        return
+
+    insertion = "".join(f'\n    "{u}",' for u in new_urls)
+    updated = content[:match.end(2)] + insertion + content[match.end(2):]
+
+    with open(SCRAPER_FILE, "w", encoding="utf-8") as f:
+        f.write(updated)
+
+
 # ---------------------------------------------------------------------------
 # Review mode  (python build_blog.py --review)
 # ---------------------------------------------------------------------------
@@ -92,6 +149,7 @@ def review_mode():
     print("Y = approve (adds to blog)   N = reject   S = skip for now\n")
 
     newly_approved = 0
+    rejected_urls = []
 
     for i, m in enumerate(pending, 1):
         url_broken = m.get("url_unresolved", False)
@@ -131,14 +189,21 @@ def review_mode():
             newly_approved += 1
             print("  Approved.")
         elif choice == "n":
-            print("  Rejected.")
+            rejected_urls.append(m["url"])
+            print("  Rejected — will be permanently blocked.")
         else:
             print("  Skipped: will appear again next time.")
 
     save_json(APPROVED_FILE, approved)
 
+    if rejected_urls:
+        remove_from_mentions(rejected_urls)
+        block_urls_permanently(rejected_urls)
+
     print(f"\n{'─' * 60}")
     print(f"{newly_approved} approved   |   total approved: {len(approved)}")
+    if rejected_urls:
+        print(f"{len(rejected_urls)} rejected   |   added to BLOCKED_URLS in {SCRAPER_FILE}")
     print(f"Saved -> {APPROVED_FILE}")
     print(f"\nNow run:  python build_blog.py\n")
 

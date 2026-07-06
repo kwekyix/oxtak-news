@@ -158,7 +158,7 @@
     "source_type": "news",
     "title": "ギズマート第10弾、スタンドアローン型AIボイスレコーダー＆翻訳ガジェット「Oxtak」が7月6日クラファン開始｜独自AI＋OpenAI Whisper両対応で97言語リアルタイム翻訳",
     "date": "2026-06-16",
-    "snippet": "",
+    "snippet": "ギズマート第10弾、スタンドアローン型AIボイスレコーダー＆翻訳ガジェット「Oxtak」が2026年7月6日にクラウドファンディング開始。独自AI「Gradia」とOpenAI Whisperの両対応、97言語リアルタイム翻訳、定価116,000円が最大40%OFFの69,600円から。",
     "language": "ja"
   },
   {
@@ -168,6 +168,33 @@
     "title": "ギズマート第10弾、プライバシーに配慮したスタンドアローン型AIレコーダー／翻訳ガジェット「Oxtak」、7月より世界に先駆けてギズマートで先行販売開始 (2026年6月15日掲載)",
     "date": "2026-06-15",
     "snippet": "",
+    "language": "ja"
+  },
+  {
+    "url": "https://www.gizmodo.jp/article/oxtak-money-penny-laurent-san/",
+    "source": "Gizmodo",
+    "source_type": "tech_media",
+    "title": "「誰も信じない」から信頼できる。スタンドアロン思想のAIレコーダー・Oxtakがやってくる",
+    "date": "2026-07-02",
+    "snippet": "インタビューや取材、ミーティングをこなすビジネスパーソンにとって、ボイスレコーダーは欠かせない存在です。最近では特に、AI連携のボイスレコーダーがビジネスシーンにおいてマストになりつつありますが、そんなトレンドの中、ギズモードがCES202",
+    "language": "ja"
+  },
+  {
+    "url": "https://www.gizmodo.jp/article/oxtak-money-penny-look/",
+    "source": "Gizmodo",
+    "source_type": "tech_media",
+    "title": "サイバー感あふれる「Oxtak」。スマホにもレコーダーにも見えないその正体",
+    "date": "2026-07-01",
+    "snippet": "皆さん、ボイスレコーダーってカッコいいと思いますか？（そもそも論としてボイスレコーダーにカッコよさを求めるのかどうかはおいといて）いわゆるボイスレコーダーといえば、細長い電化製品というか、記者が使っていそうなやつですよね。一方で最近はAIを",
+    "language": "ja"
+  },
+  {
+    "url": "https://newspicks.com/news/16961883/?ref=pickstream_2025",
+    "source": "newspicks.com",
+    "source_type": "news",
+    "title": "録音データを一気通貫で処理。「Oxtak」の魅力はプライバシーの保護にあり (ギズモード・ジャパン)",
+    "date": "2026-06-25",
+    "snippet": "ひと手間、いやふた手間以上なくなるのは大きい。レトロフューチャー感がすごいのに、中身はAI搭載の最新レコーダー兼翻訳機というギャップが面白い。そんなガジェット「Oxtak」について、先日語らせていただきました。前回の記事ではデザイン面に注目したのですが、「Oxtak」はAI系ボイスレコーダー界隈のな",
     "language": "ja"
   }
 ]
