@@ -84,6 +84,7 @@ BLOCKED_URLS = {
     "https://techcrunch.com/2026/03/20/ai-notetaker-hardware-devices-pins-pendants-record-transcribe/",
     "https://news.google.com/rss/articles/CBMiXkFVX3lxTFAtX1QweHFhSjE4dFd2OHpBbjBLeF84TlRPcXBFZzJmZTViMkNzcUl2UVRrNEVNSFZrVmFOc0c1b2dNLW81R19oNUhPT05jNW1kbUZYN245d0VjU2U4bUE?oc=5",
     "https://www.vietnam.vn/ja/oxtak-trinh-lang-moneypenny-may-ghi-am-tich-hop-ai-giup-tom-tat-va-dich-thuat-cuoc-hop",
+    "https://newspicks.com/news/17014137/?block=side-news-similar&ref=news-summary_17051443",
 }
 
 SOURCE_TYPE_LABELS = {
@@ -139,8 +140,9 @@ def search_serpapi(query: str, max_results: int = 10, gl: str = "", hl: str = ""
         for story in stories:
             title   = story.get("title", "").strip()
             link    = story.get("link", "").strip()
-            snippet = story.get("snippet", "").strip()
-            date    = story.get("date", "").strip()
+            # Stories nested inside an item have no snippet of their own; fall back to the parent item's snippet
+            snippet = (story.get("snippet") or item.get("snippet") or "").strip()
+            date    = (story.get("date") or item.get("date") or "").strip()
             source  = story.get("source", {})
             source_name = (source.get("name", "") if isinstance(source, dict) else "") or \
                           urlparse(link).netloc.replace("www.", "")

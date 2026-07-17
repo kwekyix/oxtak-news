@@ -127,14 +127,14 @@ nav {
 
 /* --- Page wrapper --- */
 .page {
-  max-width: 1320px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0 clamp(1.5rem, 5vw, 4rem);
 }
 
 /* --- Hero --- */
 .hero {
-  padding: 64px 0 36px;
+  padding: 90px 0 60px;
   border-bottom: 0.5px solid var(--border);
 }
 .hero-eyebrow {  /* currently not in use */
