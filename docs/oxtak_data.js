@@ -234,7 +234,7 @@ const MENTIONS = [
     source_type: "news",
     title:       "サイバー・AI・レコーダー「Oxtak」、ついに販売スタート！",
     date:        "2026-07-06",
-    snippet:     "au Webポータル",
+    snippet:     "有能秘書がお待ちしております。ビジネスツールらしからぬサイバーなデザインのAIレコーダー「Oxtak（オックスタック）」が、CoSTORYにてクラウドファンディングが始まりました！",
     language:    "JA",
   },
   {
