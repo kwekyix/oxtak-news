@@ -500,16 +500,4 @@ nav {
     display: none;
   }
 }
-
-@media (max-width: 420px) {
-  .hero h1 {
-    font-size: 32px;
-    letter-spacing: -0.5px;
-  }
-  .card-title {
-    font-size: 15px;
-  }
-  .mention-card {
-    padding: 14px 16px;
-  }
 }
