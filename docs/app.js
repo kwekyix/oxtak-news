@@ -9,7 +9,10 @@ const TYPE_LABELS = {
   video_youtube:   "YouTube",
 };
 
+const ITEMS_PER_PAGE = 20;
 let activeFilter = 'all';
+let currentPage = 1;
+let currentFiltered = [];
 
 function setFilter(type, btn) {
   activeFilter = type;
@@ -20,7 +23,7 @@ function setFilter(type, btn) {
 
 function applyFilters() {
   const q = document.getElementById('searchInput').value.toLowerCase();
-  const filtered = MENTIONS.filter(m => {
+  currentFiltered = MENTIONS.filter(m => {
     const matchType =
       activeFilter === 'all'
       || m.source_type === activeFilter
@@ -32,10 +35,54 @@ function applyFilters() {
       || m.source.toLowerCase().includes(q);
     return matchType && matchQ;
   });
-  renderTimeline(filtered);
-  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+  currentFiltered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  currentPage = 1;
+  document.getElementById('emptyState').style.display = currentFiltered.length ? 'none' : 'block';
+  render();
 }
 
+function render() {
+  const totalPages = Math.max(1, Math.ceil(currentFiltered.length / ITEMS_PER_PAGE));
+  currentPage = Math.min(currentPage, totalPages);
+  const start = (currentPage - 1) * ITEMS_PER_PAGE;
+  renderTimeline(currentFiltered.slice(start, start + ITEMS_PER_PAGE));
+  renderPagination(totalPages);
+}
+
+function goToPage(page) {
+  currentPage = page;
+  render();
+  document.getElementById('timeline').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderPagination(totalPages) {
+  const container = document.getElementById('pagination');
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+  const range = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) range.push(i);
+  } else {
+    range.push(1);
+    if (currentPage > 3) range.push('...');
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) range.push(i);
+    if (currentPage < totalPages - 2) range.push('...');
+    range.push(totalPages);
+  }
+
+  const numBtn = (n) => {
+    const active = n === currentPage ? ' pg-active' : '';
+    return `<button class="pg-btn${active}" onclick="goToPage(${n})">${n}</button>`;
+  };
+
+  let html = `<button class="pg-btn pg-arrow" onclick="goToPage(${currentPage - 1})"${currentPage === 1 ? ' disabled' : ''}>&lsaquo; <span class="pg-label">Previous</span></button>`;
+  for (const p of range) {
+    html += p === '...' ? `<span class="pg-ellipsis">…</span>` : numBtn(p);
+  }
+  html += `<button class="pg-btn pg-arrow" onclick="goToPage(${currentPage + 1})"${currentPage === totalPages ? ' disabled' : ''}><span class="pg-label">Next</span> &rsaquo;</button>`;
+
+  container.innerHTML = html;
+}
 
 function groupByMonth(mentions) {
   const groups = {};
@@ -49,10 +96,7 @@ function groupByMonth(mentions) {
   });
   return Object.entries(groups)
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([, g]) => {
-      g.items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-      return g;
-    });
+    .map(([, g]) => g);
 }
 
 function renderTimeline(mentions) {
@@ -101,7 +145,7 @@ function renderTimeline(mentions) {
   });
 }
 
-renderTimeline(MENTIONS);
+applyFilters();
 
 // Theme toggle
 (function () {
