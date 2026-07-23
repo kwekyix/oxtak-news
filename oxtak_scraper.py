@@ -85,6 +85,8 @@ BLOCKED_URLS = {
     "https://news.google.com/rss/articles/CBMiXkFVX3lxTFAtX1QweHFhSjE4dFd2OHpBbjBLeF84TlRPcXBFZzJmZTViMkNzcUl2UVRrNEVNSFZrVmFOc0c1b2dNLW81R19oNUhPT05jNW1kbUZYN245d0VjU2U4bUE?oc=5",
     "https://www.vietnam.vn/ja/oxtak-trinh-lang-moneypenny-may-ghi-am-tich-hop-ai-giup-tom-tat-va-dich-thuat-cuoc-hop",
     "https://newspicks.com/news/17014137/?block=side-news-similar&ref=news-summary_17051443",
+    "https://newspicks.com/news/17008443/?block=side-news-similar&ref=news-summary_17030699",
+    "https://newspicks.com/news/17008443/?ref=user",
 }
 
 SOURCE_TYPE_LABELS = {
